@@ -1,0 +1,3 @@
+This catalogue presents software connected to the publication:
+Anna Ostaszewska-Lizewska, Roman Szewczyk, Peter Raback, Mika Malinen: 
+"Modelling the characteristics of ring-shaped magnetoelastic force sensor in Mohri’s configuration"
