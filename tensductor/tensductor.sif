@@ -1,0 +1,316 @@
+! MIT License
+! 
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+! 
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+! 
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+!
+$ ForceExtX = 5.0e+07		! Stresses at the edge of tensductor
+
+Header
+	CHECK KEYWORDS Warn
+	Mesh DB "." "tensductor"
+	Include Path ""
+	Results Directory "."
+End
+
+Simulation
+	Mesh Levels = 1
+	Max Output Level = 5
+	Coordinate System = "Cartesian 3D"  
+	Coordinate Mapping(3) = 1 2 3  
+	Simulation Type = Steady state
+	Steady State Max Iterations = 100
+	Output Intervals = 1
+	Timestepping Method = BDF
+	BDF Order = 1
+!	Solver Input File = ring_ext.sif  
+!	Post File = "ring_ext.ep"
+End
+
+Constants
+	Gravity(4) = 0 -1 0 9.82
+	Stefan Boltzmann = 5.67e-08
+	Permittivity of Vacuum = 8.8542e-12
+	Boltzmann Constant = 1.3807e-23
+	Unit Charge = 1.602e-19
+End
+
+! ------ MATERIALS --------
+
+Material 1
+	Name = "air"
+	Electric Conductivity = Real 0.0
+	Relative Permeability = Real 1.0
+End
+
+
+Material 2
+	Name = "copper"
+	Electric Conductivity = 6.0e3 ! 6.0e7
+	Relative Permeability = 1.0
+End
+
+
+Material 3
+  Name = "Steel (carbon - generic)"
+  Heat expansion Coefficient = 13.8e-6
+  Heat Conductivity = 44.8
+  Sound speed = 5100.0
+  Heat Capacity = 1265.0
+  Mesh Poisson ratio = 0.285
+  Density = 7850.0
+  Poisson ratio = 0.285
+  Youngs modulus = 200.0e9
+  Electric Conductivity = 1.0e7
+
+ Relative Reluctivity (3,3) = Variable "Principal Stress 1", "Principal Stress 2", "Principal angle 1"
+		Real Procedure "reluct_file" "reluct_func"
+
+End
+
+! ------- BODIES ----------
+
+Body 1
+	Target Bodies (1) = 1 
+	Name = "Core"
+	Equation = 1
+	Material = 3
+End
+
+Body 2
+	Target Bodies (1) = 2
+	Name = "Wire"
+	Equation = 2
+	Material = 2
+	Body Force = 1
+End
+
+Body 3
+	Target Bodies (1) = 3
+	Name = "Range"
+	Equation = 2
+	Material = 1
+End
+
+
+! --------- SOLVERS --------
+
+Solver 1
+  Equation = Linear elasticity
+  Procedure = "StressSolve" "StressSolver"
+  Variable = -dofs 3 Displacement
+  Exec Solver = before simulation ! Always
+  Stabilize = True
+  Bubbles = False
+  Lumped Mass Matrix = False
+  Optimize Bandwidth = True
+  Steady State Convergence Tolerance = 7.0e-6
+  Nonlinear System Convergence Tolerance = 1.0e-11
+  Nonlinear System Max Iterations = 1
+  Nonlinear System Newton After Iterations = 3
+  Nonlinear System Newton After Tolerance = 1.0e-11
+  Nonlinear System Relaxation Factor = 1
+  Linear System Solver = Iterative
+  Linear System Iterative Method = CGR ! BiCGStabl CGR
+  Linear System Max Iterations = 15000
+  Linear System Convergence Tolerance = 7.0e-6
+  BiCGstabl polynomial degree = 2
+  Linear System Preconditioning = ILU1
+  Linear System ILUT Tolerance = 1.0e-11
+  Linear System Abort Not Converged = False
+  Linear System Residual Output = 1
+  Linear System Precondition Recompute = 1
+
+!  Fix Displacements = True
+
+  Calculate Strains = True
+  Calculate Principal = True
+  Calculate Stresses = True
+  Calculate Pangle = True
+End
+
+Solver 2
+	Equation = "Static Current Driver"
+	Exec Solver = always ! before simulation
+	Calculate Loads = False
+	Variable = Potential
+	Variable DOFs = 1
+	Procedure = "StatCurrentSolve" "StatCurrentSolver"
+	Stabilize = True
+	Bubbles = False
+	Lumped Mass Matrix = False
+	Optimize Bandwidth = True
+	Calculate Volume Current = True
+	Calculate Joule Heating = False
+	Steady State Convergence Tolerance = 1.0e-11
+	Nonlinear System Convergence Tolerance = 1e-11
+	Nonlinear System Max Iterations = 500
+	Nonlinear System Newton After Iterations = 6
+	Nonlinear System Newton After Tolerance = 1.0e-11
+	Nonlinear System Relaxation Factor = 1
+	Linear System Solver = Iterative
+	Linear System Iterative Method = BiCGStab
+	Linear System Max Iterations = 20000
+	Linear System Convergence Tolerance = 1.0e-11
+	Linear System Preconditioning = ILU0
+	Linear System ILUT Tolerance = 1.0e-11
+	Linear System Abort Not Converged = False
+	Linear System Residual Output = 1
+	Linear System Precondition Recompute = 1
+End
+
+Solver 3
+       Equation = "MGDynamics"
+       Exec Solver = always
+       Variable = "A"
+
+       Procedure = "MagnetoDynamics" "WhitneyAVSolver"
+       Fix Input Current Density = Logical True
+
+!       Newton-Raphson Iteration = Logical True
+       Nonlinear System Max Iterations = 1
+       Nonlinear System Convergence Tolerance = 1.0e-10
+
+!       Linear System Symmetric = Logical True
+       Linear System Solver = "Iterative"
+       Linear System Preconditioning =  None
+       Linear System Convergence Tolerance = 1.0e-10
+       Linear System Residual Output = 100
+       Linear System Max Iterations = 200000
+       Linear System Iterative Method =  CG
+       Steady State Convergence Tolerance = 1.0e-10
+End
+
+Solver 4
+ 	Equation = "MGDynamicsCalc"
+	Exec Solver = always
+  	Procedure = "MagnetoDynamics" "MagnetoDynamicsCalcFields"
+  	Linear System Symmetric = True
+	
+  	Potential Variable = String "A"
+	
+ 	Calculate Magnetic Vector Potential = Logical True
+ 	Calculate Current Density = Logical True
+  	Calculate Joule Heating = Logical True
+  	Calculate Electric Field = Logical True
+ 	Calculate Magnetic Flux Density = Logical True
+	Calculate Magnetic Field Strength = Logical True
+
+  	Steady State Convergence Tolerance = 1
+ 	Linear System Solver = "Iterative"
+ 	Linear System Preconditioning = none !ILU2
+ 	Linear System Residual Output = 0
+  	Linear System Max Iterations = 25000
+ 	Linear System Iterative Method = Bicgstabl
+	Linear System Convergence Tolerance = 1.0e-10
+End 
+
+Solver 5
+  	Exec Solver =  After simulation
+  	! Exec Interval = 2
+  	Equation = "result output"
+  	Procedure = "ResultOutputSolve" "ResultOutputSolver"
+  	Save Geometry Ids = Logical True ! add this line if you want to access boundaries in Paraview
+  	Output File Name = File "ring_ext.vtu"
+  	Output Format = String vtu
+End
+
+Solver 6
+	Exec Solver = After all
+	Equation = SaveGrid2
+	Procedure = "SaveGridData" "SaveGridData"
+	Filename Prefix = String Stresses_dat
+	Output Format = String table
+	Check for Duplicates = Logical True
+
+	Grid nx = Integer 560
+	Grid ny = Integer 560
+	Grid nz = Integer 1
+	
+	Min Coordinate 1 = Real -0.020
+	Min Coordinate 2 = Real -0.020
+	Min Coordinate 3 = Real -0.000001
+
+	Max Coordinate 1 = Real 0.020
+	Max Coordinate 2 = Real 0.020
+	Max Coordinate 3 = Real 0.0000001
+
+	Vector Field 1 = String Stress
+	Vector Field 2 = String Principal stress
+	Vector Field 3 = String Principal angle
+	Vector Field 4 = String Magnetic flux density
+
+End
+
+
+! -------- EQUATIONS ----------
+Equation 1
+	Name = "Equation1"
+	Active Solvers (6) =  1 2 3 4 5 6
+End
+
+Equation 2
+	Name = "Equation2"
+	Active Solvers (5) = 2 3 4 5 6
+End
+
+
+!---------BODY FORCE------
+
+Body Force 1
+	Name = "Current Density1"
+	Current Density 1 = Equals Volume current 1
+	Current Density 2 = Equals Volume current 2
+	Current Density 3 = Equals Volume current 3
+End
+
+
+! ------- BOUNDARY CONDITIONS -------
+
+
+Boundary Condition 1
+	Target Boundaries = 13
+	Name = "ground1"
+	Potential = 0
+End
+
+Boundary Condition 2
+	Target Boundaries = 14
+	Name = "Ua1"
+	Potential = 1
+End
+
+Boundary condition 3 
+  name = "Far"
+  target boundaries (1) = 19
+  A = real 0
+End
+
+Boundary Condition 4
+  Target Boundaries(1) = 2 
+  Name = "Fixed"
+!  Displacement 3 = 0
+!  Displacement 2 = 0
+!  Displacement 1 = 0
+  Force 1 = $ (-1) * ForceExtX
+End
+
+Boundary Condition 5
+  Target Boundaries(1) = 5 
+  Name = "Force"
+  Force 1 = $ ForceExtX
+End
