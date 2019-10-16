@@ -1,0 +1,5 @@
+Code for the paper:
+Roman Szewczyk, Michał Nowicki, Anna Ostaszewska-Liżewska, Mika Malinen
+"Modeling the magnetoelastic effect in soft magnetic material of a tensductor core"
+submitted to Materials
+
